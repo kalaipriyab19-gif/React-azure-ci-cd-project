@@ -1,0 +1,56 @@
+trigger:
+- main
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: Npm@1
+      inputs:
+        command: install
+
+    - task: Npm@1
+      inputs:
+        command: custom
+        customCommand: run build
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: build
+        ArtifactName: drop
+
+- stage: Deploy
+  jobs:
+  - job: Deploy
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: DownloadBuildArtifacts@1
+      inputs:
+        buildType: current
+        artifactName: drop
+        downloadPath: $(System.ArtifactsDirectory)
+
+    - task: AzureRmWebAppDeployment@4
+      displayName: Deploy to Staging Slot
+      inputs:
+        ConnectionType: AzureRM
+        azureSubscription: YOUR_SERVICE_CONNECTION
+        appType: webAppLinux
+        WebAppName: YOUR_WEBAPP_NAME
+        deployToSlotOrASE: true
+        SlotName: staging
+        packageForLinux: $(System.ArtifactsDirectory)/drop
+        RuntimeStack: STATICSITE|1.0
+
+    - task: AzureAppServiceManage@0
+      displayName: Swap Slots
+      inputs:
+        azureSubscription: YOUR_SERVICE_CONNECTION
+        Action: Swap Slots
+        WebAppName: YOUR_WEBAPP_NAME
+        ResourceGroupName: YOUR_RESOURCE_GROUP
+        SourceSlot: staging
